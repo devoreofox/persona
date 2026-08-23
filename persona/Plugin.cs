@@ -4,6 +4,7 @@ using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using persona.Models;
+using persona.Services;
 using persona.UI;
 using persona.Windows;
 
@@ -20,9 +21,11 @@ public sealed class Plugin : IDalamudPlugin
     public Configuration Configuration { get; init; }
 
     public readonly WindowSystem WindowSystem = new("persona");
+    private DesignAnalyzer Analyzer { get; init; }
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
     private DesignsWindow DesignsWindow { get; init; }
+    private SuggestionsWindow SuggestionsWindow { get; init; }
 
     public Plugin()
     {
@@ -30,13 +33,17 @@ public sealed class Plugin : IDalamudPlugin
 
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
+        Analyzer = new DesignAnalyzer(Configuration);
+
         ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
-        DesignsWindow = new DesignsWindow();
+        DesignsWindow = new DesignsWindow(Analyzer);
+        SuggestionsWindow = new SuggestionsWindow(Analyzer);
 
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(DesignsWindow);
+        WindowSystem.AddWindow(SuggestionsWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -59,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin
         ConfigWindow.Dispose();
         MainWindow.Dispose();
         DesignsWindow.Dispose();
+        SuggestionsWindow.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
     }
@@ -71,4 +79,5 @@ public sealed class Plugin : IDalamudPlugin
     public void ToggleConfigUi() => ConfigWindow.Toggle();
     public void ToggleMainUi() => MainWindow.Toggle();
     public void ToggleDesignsUi() => DesignsWindow.Toggle();
+    public void ToggleSuggestionsUi() => SuggestionsWindow.Toggle();
 }

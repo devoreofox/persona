@@ -9,6 +9,7 @@ public static class Palette
     public static Vector4 Label;
     public static Vector4 Connected;
     public static Vector4 Disconnected;
+    public static Vector4 Muted;
 
     public static void Apply(ThemeColors t)
     {
@@ -16,5 +17,6 @@ public static class Palette
         Label = t.Label;
         Connected = t.Connected;
         Disconnected = t.Disconnected;
+        Muted = t.Muted;
     }
 }

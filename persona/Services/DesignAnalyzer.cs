@@ -1,0 +1,253 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json.Linq;
+using persona.Models;
+using GetAllModSettings = Penumbra.Api.IpcSubscribers.GetAllModSettings;
+using GetChangedItems = Penumbra.Api.IpcSubscribers.GetChangedItemAdapterDictionary;
+using GetCollectionForObject = Penumbra.Api.IpcSubscribers.GetCollectionForObject;
+using GetModList = Penumbra.Api.IpcSubscribers.GetModList;
+using GetDesignJObject = Glamourer.Api.IpcSubscribers.GetDesignJObject;
+using GetDesignList = Glamourer.Api.IpcSubscribers.GetDesignList;
+
+namespace persona.Services;
+
+public sealed class DesignAnalyzer
+{
+    private readonly Configuration config;
+    private readonly GetDesignList getDesignList;
+    private readonly GetDesignJObject getDesignJObject;
+    private readonly GetChangedItems getChangedItems;
+    private readonly GetModList getModList;
+    private readonly GetAllModSettings getAllModSettings;
+    private readonly GetCollectionForObject getCollectionForObject;
+
+    private Dictionary<Guid, string> designs = new();
+    private Dictionary<Guid, JObject> raw = new();
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> changedItems = new Dictionary<string, IReadOnlyDictionary<string, object?>>();
+
+    private Dictionary<Guid, Dictionary<string, List<(string Dir, string Name)>>> equipMods = new();
+    private Dictionary<string, List<(Guid Design, string Dir, string Name)>> itemSources = new();
+    private Dictionary<Guid, HashSet<string>> enabledDirs = new();
+    private Dictionary<Guid, HashSet<string>> disabledDirs = new();
+    private Dictionary<Guid, Dictionary<string, int>> enabledPriority = new();
+
+    private Dictionary<string, string> modNames = new();
+    private HashSet<string> liveEnabled = new();
+    private Dictionary<string, int> livePriority = new();
+
+    public bool GlamourerOk { get; private set; }
+    public IReadOnlyDictionary<Guid, string> Designs => designs;
+
+    public DesignAnalyzer(Configuration config)
+    {
+        this.config = config;
+        getDesignList = new GetDesignList(Plugin.PluginInterface);
+        getDesignJObject = new GetDesignJObject(Plugin.PluginInterface);
+        getChangedItems = new GetChangedItems(Plugin.PluginInterface);
+        getModList = new GetModList(Plugin.PluginInterface);
+        getAllModSettings = new GetAllModSettings(Plugin.PluginInterface);
+        getCollectionForObject = new GetCollectionForObject(Plugin.PluginInterface);
+    }
+
+    public bool IsWhitelisted(string dir) => config.WhitelistedMods.Contains(dir);
+    public bool IsBlacklisted(Guid id) => config.BlacklistedDesigns.Contains(id.ToString());
+
+    public void ToggleWhitelist(string dir)
+    {
+        if (!config.WhitelistedMods.Add(dir))
+            config.WhitelistedMods.Remove(dir);
+        config.Save();
+        Refresh();
+    }
+
+    public void ToggleBlacklist(Guid id)
+    {
+        var key = id.ToString();
+        if (!config.BlacklistedDesigns.Add(key))
+            config.BlacklistedDesigns.Remove(key);
+        config.Save();
+        Refresh();
+    }
+
+    public JObject? GetRaw(Guid id) => raw.GetValueOrDefault(id);
+
+    public IReadOnlyDictionary<string, List<(string Dir, string Name)>> ItemMods(Guid id) =>
+        equipMods.GetValueOrDefault(id) ?? new Dictionary<string, List<(string, string)>>();
+
+    private DesignData Snapshot => new(designs, equipMods, itemSources, enabledDirs, disabledDirs,
+        enabledPriority, changedItems, liveEnabled, livePriority, modNames, IsBlacklisted);
+
+    public List<(string Design, string Items)> Conflicts(Guid id) => SuggestionEngine.Conflicts(Snapshot, id);
+
+    public List<(string Item, string Sources)> BleedRisks(Guid id) => SuggestionEngine.BleedRisks(Snapshot, id);
+
+    public (List<Suggestion> ThisDesign, List<(string Design, List<Suggestion> Rows)> Others) Suggestions(Guid id) =>
+        SuggestionEngine.Suggestions(Snapshot, id);
+
+    public void Refresh()
+    {
+        try
+        {
+            designs = getDesignList.Invoke();
+            GlamourerOk = true;
+        }
+        catch
+        {
+            GlamourerOk = false;
+            designs = new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            changedItems = getChangedItems.Invoke();
+        }
+        catch
+        {
+            changedItems = new Dictionary<string, IReadOnlyDictionary<string, object?>>();
+        }
+
+        RefreshLiveState();
+
+        raw = new Dictionary<Guid, JObject>();
+        equipMods = new Dictionary<Guid, Dictionary<string, List<(string, string)>>>();
+        enabledDirs = new Dictionary<Guid, HashSet<string>>();
+        disabledDirs = new Dictionary<Guid, HashSet<string>>();
+        enabledPriority = new Dictionary<Guid, Dictionary<string, int>>();
+
+        foreach (var id in designs.Keys)
+        {
+            JObject? data;
+            try
+            {
+                data = getDesignJObject.Invoke(id);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (data is null) continue;
+
+            raw[id] = data;
+            equipMods[id] = EquippedItemMods(data);
+            (enabledDirs[id], disabledDirs[id], enabledPriority[id]) = ModStates(data);
+        }
+
+        BuildItemSources();
+    }
+
+    private void RefreshLiveState()
+    {
+        try { modNames = getModList.Invoke(); }
+        catch { modNames = new Dictionary<string, string>(); }
+
+        liveEnabled = new HashSet<string>();
+        livePriority = new Dictionary<string, int>();
+        try
+        {
+            var obj = getCollectionForObject.Invoke(0);
+            if (obj.Item1)
+            {
+                var settings = getAllModSettings.Invoke(obj.Item3.Item1).Item2;
+                if (settings is not null)
+                {
+                    foreach (var (dir, s) in settings)
+                    {
+                        if (!s.Item1 || IsWhitelisted(dir))
+                            continue;
+                        liveEnabled.Add(dir);
+                        livePriority[dir] = s.Item2;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            liveEnabled = new HashSet<string>();
+            livePriority = new Dictionary<string, int>();
+        }
+    }
+
+    private static (HashSet<string> Enabled, HashSet<string> Disabled, Dictionary<string, int> Priority) ModStates(JObject design)
+    {
+        var enabled = new HashSet<string>();
+        var disabled = new HashSet<string>();
+        var priority = new Dictionary<string, int>();
+        if (design["Mods"] is JArray mods)
+        {
+            foreach (var m in mods)
+            {
+                var dir = m["Directory"]?.Value<string>();
+                if (dir is null)
+                    continue;
+                if (m["Enabled"]?.Value<bool>() ?? false)
+                {
+                    enabled.Add(dir);
+                    priority[dir] = m["Priority"]?.Value<int>() ?? 0;
+                }
+                else
+                {
+                    disabled.Add(dir);
+                }
+            }
+        }
+        return (enabled, disabled, priority);
+    }
+
+    private Dictionary<string, List<(string Dir, string Name)>> EquippedItemMods(JObject design)
+    {
+        var result = new Dictionary<string, List<(string, string)>>();
+        if (design["Equipment"] is not JObject equipment)
+            return result;
+
+        var enabled = new List<(string Dir, string Name)>();
+        if (design["Mods"] is JArray mods)
+        {
+            foreach (var mod in mods)
+            {
+                if (!(mod["Enabled"]?.Value<bool>() ?? false))
+                    continue;
+                var dir = mod["Directory"]?.Value<string>();
+                if (dir is not null && !IsWhitelisted(dir))
+                    enabled.Add((dir, mod["Name"]?.Value<string>() ?? dir));
+            }
+        }
+
+        foreach (var slot in equipment.Properties())
+        {
+            var itemId = slot.Value["ItemId"];
+            if (itemId is null)
+                continue;
+
+            var itemName = ItemNames.Resolve(itemId.Value<ulong>());
+            if (itemName == "None")
+                continue;
+
+            result[itemName] = enabled
+                .Where(m => changedItems.TryGetValue(m.Dir, out var items) && items.ContainsKey(itemName))
+                .ToList();
+        }
+
+        return result;
+    }
+
+    private void BuildItemSources()
+    {
+        itemSources = new Dictionary<string, List<(Guid, string, string)>>();
+        foreach (var (id, map) in equipMods)
+        {
+            if (IsBlacklisted(id))
+                continue;
+            foreach (var (item, mods) in map)
+            {
+                foreach (var (dir, name) in mods)
+                {
+                    if (!itemSources.TryGetValue(item, out var list))
+                        itemSources[item] = list = new List<(Guid, string, string)>();
+                    list.Add((id, dir, name));
+                }
+            }
+        }
+    }
+}

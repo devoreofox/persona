@@ -40,6 +40,9 @@ public class MainWindow : Window, IDisposable
 
         if (ImGui.Button("Designs"))
             plugin.ToggleDesignsUi();
+        ImGui.SameLine();
+        if (ImGui.Button("Suggestions"))
+            plugin.ToggleSuggestionsUi();
     }
 
     private static bool IsConnected(Action probe)
