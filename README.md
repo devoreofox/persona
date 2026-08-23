@@ -1,4 +1,4 @@
-# SamplePlugin
+# persona
 
 TODO: one or two sentence description of what this plugin does.
 
@@ -14,7 +14,7 @@ TODO: one or two sentence description of what this plugin does.
 ```
 TODO/raw/refs/heads/main/repo.json
 ```
-4. Open `/xlplugins` in-game and search for **SamplePlugin**
+4. Open `/xlplugins` in-game and search for **persona**
 
 ## Usage
 
@@ -26,4 +26,4 @@ AGPL-3.0-or-later
 
 ## Attribution
 
-SamplePlugin is free software under the AGPL-3.0, and attribution is required. If you fork it, redistribute it, or reuse its code, you must keep the existing copyright and license notices in place and credit the original author (Oreo) with a visible link back to this repository (TODO). Please do not remove or hide that attribution.
+persona is free software under the AGPL-3.0, and attribution is required. If you fork it, redistribute it, or reuse its code, you must keep the existing copyright and license notices in place and credit the original author (Oreo) with a visible link back to this repository (TODO). Please do not remove or hide that attribution.
