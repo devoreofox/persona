@@ -1,8 +1,8 @@
 {
   "Author": "Oreo",
-  "Name": "persona",
+  "Name": "Persona",
   "Punchline": "Automatic Penumbra mod-conflict management for your Glamourer designs.",
-  "Description": "persona reads your Glamourer designs and the Penumbra mods behind them, works out which mod belongs to which item in each outfit, and flags when two outfits fight over the same item. It keeps every design self-contained so applying one never leaves a mod bleeding through from the last. Open it with /persona.",
+  "Description": "Persona reads your Glamourer designs and the Penumbra mods behind them, works out which mod belongs to which item in each outfit, and flags when two outfits fight over the same item. It keeps every design self-contained so applying one never leaves a mod bleeding through from the last. Open it with /persona.",
   "ApplicableVersion": "any",
   "Tags": [
     "glamourer",

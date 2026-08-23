@@ -1,16 +1,22 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
+using GlamourerApiVersion = Glamourer.Api.IpcSubscribers.ApiVersion;
+using PenumbraApiVersion = Penumbra.Api.IpcSubscribers.ApiVersion;
 
 namespace persona.Windows;
 
 public class MainWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
+    private readonly PenumbraApiVersion penumbraApiVersion;
+    private readonly GlamourerApiVersion glamourerApiVersion;
 
     public MainWindow(Plugin plugin)
-        : base("persona##Main", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+        : base("Persona##Main", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {
@@ -19,11 +25,43 @@ public class MainWindow : Window, IDisposable
         };
 
         this.plugin = plugin;
+        penumbraApiVersion = new PenumbraApiVersion(Plugin.PluginInterface);
+        glamourerApiVersion = new GlamourerApiVersion(Plugin.PluginInterface);
     }
 
     public void Dispose() { }
 
     public override void Draw()
     {
+        DrawConnectionStatus("Penumbra", IsConnected(() => penumbraApiVersion.Invoke()));
+        ImGui.SameLine();
+        DrawConnectionStatus("Glamourer", IsConnected(() => glamourerApiVersion.Invoke()));
+        ImGui.Separator();
+    }
+
+    private static bool IsConnected(Action probe)
+    {
+        try
+        {
+            probe();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void DrawConnectionStatus(string name, bool connected)
+    {
+        ImGui.TextColored(ImGuiColors.DalamudWhite, name);
+        ImGui.SameLine();
+
+        var icon = connected ? FontAwesomeIcon.Check : FontAwesomeIcon.Times;
+        var color = connected ? ImGuiColors.HealerGreen : ImGuiColors.DalamudRed;
+
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.TextColored(color, icon.ToIconString());
+        ImGui.PopFont();
     }
 }
