@@ -13,7 +13,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
 
-    private const string CommandName = "/TODO";
+    private const string CommandName = "/persona";
 
     public Configuration Configuration { get; init; }
 
@@ -33,7 +33,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "TODO"
+            HelpMessage = "Opens the persona window."
         });
 
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;

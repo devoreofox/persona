@@ -91,3 +91,10 @@ jobs:
           files: ${{ env.PROJECT_NAME }}.zip
           generate_release_notes: false
           body_path: release_notes.txt
+      - name: Notify Fox's Hollow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HOLLOW_PAT }}
+          repository: devoreofox/foxs-hollow
+          event-type: plugin-updated
+          client-payload: '{"plugin": "${{ env.PROJECT_NAME }}", "version": "${{ steps.version.outputs.VERSION }}"}'
