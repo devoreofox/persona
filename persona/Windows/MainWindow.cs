@@ -2,8 +2,8 @@ using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
-using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
+using persona.UI;
 using GlamourerApiVersion = Glamourer.Api.IpcSubscribers.ApiVersion;
 using PenumbraApiVersion = Penumbra.Api.IpcSubscribers.ApiVersion;
 
@@ -37,6 +37,9 @@ public class MainWindow : Window, IDisposable
         ImGui.SameLine();
         DrawConnectionStatus("Glamourer", IsConnected(() => glamourerApiVersion.Invoke()));
         ImGui.Separator();
+
+        if (ImGui.Button("Designs"))
+            plugin.ToggleDesignsUi();
     }
 
     private static bool IsConnected(Action probe)
@@ -54,11 +57,11 @@ public class MainWindow : Window, IDisposable
 
     private static void DrawConnectionStatus(string name, bool connected)
     {
-        ImGui.TextColored(ImGuiColors.DalamudWhite, name);
+        ImGui.TextColored(Palette.Label, name);
         ImGui.SameLine();
 
         var icon = connected ? FontAwesomeIcon.Check : FontAwesomeIcon.Times;
-        var color = connected ? ImGuiColors.HealerGreen : ImGuiColors.DalamudRed;
+        var color = connected ? Palette.Connected : Palette.Disconnected;
 
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.TextColored(color, icon.ToIconString());
