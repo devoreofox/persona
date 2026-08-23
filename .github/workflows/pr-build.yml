@@ -1,0 +1,43 @@
+name: PR Builder
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  build:
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Download Dalamud
+      run: |
+        Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
+        Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+    # Finds the plugin's .csproj by pattern instead of a hardcoded name, so this file
+    # never needs editing by the rename workflow (which isn't allowed to touch anything
+    # under .github/workflows/ anyway).
+    - name: Build with dotnet
+      shell: pwsh
+      run: |
+        $csproj = Get-ChildItem -Path . -Filter *.csproj -Recurse -Depth 1 | Select-Object -First 1
+        dotnet build $csproj.FullName --configuration Release
+        echo "PROJECT_DIR=$($csproj.DirectoryName)" >> $env:GITHUB_ENV
+
+    - name: Store artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Plugin
+        path: ${{ env.PROJECT_DIR }}\bin\Release\*
+        if-no-files-found: error
+        retention-days: 1
+

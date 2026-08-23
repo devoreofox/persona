@@ -1,0 +1,20 @@
+[
+  {
+    "Author": "Oreo",
+    "Name": "SamplePlugin",
+    "InternalName": "SamplePlugin",
+    "Punchline": "TODO",
+    "Description": "TODO",
+    "RepoUrl": "TODO",
+    "IconUrl": "TODO/raw/refs/heads/main/SamplePlugin/images/icon.png",
+    "Tags": [
+      "TODO"
+    ],
+    "DalamudApiLevel": 15,
+    "AssemblyVersion": "0.0.0.1",
+    "Version": "0.0.0.1",
+    "DownloadLinkInstall": "TODO/releases/latest/download/SamplePlugin.zip",
+    "DownloadLinkUpdate": "TODO/releases/latest/download/SamplePlugin.zip",
+    "DownloadLinkTesting": "TODO/releases/latest/download/SamplePlugin.zip"
+  }
+]

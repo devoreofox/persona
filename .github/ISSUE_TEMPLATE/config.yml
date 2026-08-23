@@ -1,0 +1,4 @@
+# Forces every issue through Bug/Feature/Research instead of a blank form.
+# Add a contact_links entry here (e.g. Discord) if you want a support-question
+# option to show up on the issue chooser instead of a template.
+blank_issues_enabled: false
