@@ -32,6 +32,8 @@ public static class PersonaUi
         var clicked = ImGui.Selectable(blacklisted ? $"{name} (ignored)" : name, selected);
         if (ImGui.BeginPopupContextItem("##bl"))
         {
+            if (ImGui.MenuItem("Open in Glamourer"))
+                analyzer.OpenDesignInGlamourer(id);
             if (ImGui.MenuItem(blacklisted ? "Stop ignoring this design" : "Ignore this design (blacklist)"))
             {
                 analyzer.ToggleBlacklist(id);

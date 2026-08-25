@@ -11,6 +11,7 @@ using GetCollectionForObject = Penumbra.Api.IpcSubscribers.GetCollectionForObjec
 using GetModList = Penumbra.Api.IpcSubscribers.GetModList;
 using GetDesignJObject = Glamourer.Api.IpcSubscribers.GetDesignJObject;
 using GetDesignList = Glamourer.Api.IpcSubscribers.GetDesignList;
+using OpenDesign = Glamourer.Api.IpcSubscribers.OpenDesign;
 
 namespace persona.Services;
 
@@ -24,6 +25,7 @@ public sealed class DesignAnalyzer
     private readonly GetAllModSettings getAllModSettings;
     private readonly GetCollectionForObject getCollectionForObject;
     private readonly OpenMainWindow openMainWindow;
+    private readonly OpenDesign openDesign;
 
     private Dictionary<Guid, string> designs = new();
     private Dictionary<Guid, JObject> raw = new();
@@ -52,6 +54,7 @@ public sealed class DesignAnalyzer
         getAllModSettings = new GetAllModSettings(Plugin.PluginInterface);
         getCollectionForObject = new GetCollectionForObject(Plugin.PluginInterface);
         openMainWindow = new OpenMainWindow(Plugin.PluginInterface);
+        openDesign = new OpenDesign(Plugin.PluginInterface);
     }
 
     public IEnumerable<(string Dir, string Name)> WhitelistedMods() =>
@@ -68,6 +71,12 @@ public sealed class DesignAnalyzer
     public void OpenModInPenumbra(string dir)
     {
         try { openMainWindow.Invoke(TabType.Mods, dir); }
+        catch { }
+    }
+
+    public void OpenDesignInGlamourer(Guid id)
+    {
+        try { openDesign.Invoke(id); }
         catch { }
     }
 
