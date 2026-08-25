@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
+using Penumbra.Api.Enums;
 using persona.Models;
 using GetAllModSettings = Penumbra.Api.IpcSubscribers.GetAllModSettings;
+using OpenMainWindow = Penumbra.Api.IpcSubscribers.OpenMainWindow;
 using GetChangedItems = Penumbra.Api.IpcSubscribers.GetChangedItemAdapterDictionary;
 using GetCollectionForObject = Penumbra.Api.IpcSubscribers.GetCollectionForObject;
 using GetModList = Penumbra.Api.IpcSubscribers.GetModList;
@@ -21,6 +23,7 @@ public sealed class DesignAnalyzer
     private readonly GetModList getModList;
     private readonly GetAllModSettings getAllModSettings;
     private readonly GetCollectionForObject getCollectionForObject;
+    private readonly OpenMainWindow openMainWindow;
 
     private Dictionary<Guid, string> designs = new();
     private Dictionary<Guid, JObject> raw = new();
@@ -48,15 +51,48 @@ public sealed class DesignAnalyzer
         getModList = new GetModList(Plugin.PluginInterface);
         getAllModSettings = new GetAllModSettings(Plugin.PluginInterface);
         getCollectionForObject = new GetCollectionForObject(Plugin.PluginInterface);
+        openMainWindow = new OpenMainWindow(Plugin.PluginInterface);
     }
 
-    public bool IsWhitelisted(string dir) => config.WhitelistedMods.Contains(dir);
+    public IEnumerable<(string Dir, string Name)> WhitelistedMods() =>
+        config.WhitelistedMods
+            .Select(dir => (dir, modNames.GetValueOrDefault(dir, dir)))
+            .OrderBy(m => m.Item2, StringComparer.OrdinalIgnoreCase);
+
+    public IEnumerable<(string Dir, string Name, string Item)> WhitelistedModItems() =>
+        config.WhitelistedModItems
+            .SelectMany(kv => kv.Value.Select(item => (kv.Key, modNames.GetValueOrDefault(kv.Key, kv.Key), item)))
+            .OrderBy(m => m.Item2, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(m => m.Item3, StringComparer.OrdinalIgnoreCase);
+
+    public void OpenModInPenumbra(string dir)
+    {
+        try { openMainWindow.Invoke(TabType.Mods, dir); }
+        catch { }
+    }
+
     public bool IsBlacklisted(Guid id) => config.BlacklistedDesigns.Contains(id.ToString());
+
+    public bool IsIgnored(string dir, string item) =>
+        config.WhitelistedMods.Contains(dir) ||
+        (config.WhitelistedModItems.TryGetValue(dir, out var items) && items.Contains(item));
 
     public void ToggleWhitelist(string dir)
     {
         if (!config.WhitelistedMods.Add(dir))
             config.WhitelistedMods.Remove(dir);
+        config.Save();
+        Refresh();
+    }
+
+    public void ToggleWhitelistItem(string dir, string item)
+    {
+        if (!config.WhitelistedModItems.TryGetValue(dir, out var items))
+            config.WhitelistedModItems[dir] = items = new HashSet<string>();
+        if (!items.Add(item))
+            items.Remove(item);
+        if (items.Count == 0)
+            config.WhitelistedModItems.Remove(dir);
         config.Save();
         Refresh();
     }
@@ -76,7 +112,7 @@ public sealed class DesignAnalyzer
         equipMods.GetValueOrDefault(id) ?? new Dictionary<string, List<(string, string)>>();
 
     private DesignData Snapshot => new(designs, equipMods, itemSources, enabledDirs, disabledDirs,
-        enabledPriority, changedItems, liveEnabled, livePriority, modNames, IsBlacklisted);
+        enabledPriority, changedItems, liveEnabled, livePriority, modNames, IsBlacklisted, IsIgnored);
 
     public List<(string Design, string Items)> Conflicts(Guid id) => SuggestionEngine.Conflicts(Snapshot, id);
 
@@ -154,7 +190,7 @@ public sealed class DesignAnalyzer
                 {
                     foreach (var (dir, s) in settings)
                     {
-                        if (!s.Item1 || IsWhitelisted(dir))
+                        if (!s.Item1)
                             continue;
                         liveEnabled.Add(dir);
                         livePriority[dir] = s.Item2;
@@ -209,7 +245,7 @@ public sealed class DesignAnalyzer
                 if (!(mod["Enabled"]?.Value<bool>() ?? false))
                     continue;
                 var dir = mod["Directory"]?.Value<string>();
-                if (dir is not null && !IsWhitelisted(dir))
+                if (dir is not null)
                     enabled.Add((dir, mod["Name"]?.Value<string>() ?? dir));
             }
         }
@@ -225,7 +261,7 @@ public sealed class DesignAnalyzer
                 continue;
 
             result[itemName] = enabled
-                .Where(m => changedItems.TryGetValue(m.Dir, out var items) && items.ContainsKey(itemName))
+                .Where(m => !IsIgnored(m.Dir, itemName) && changedItems.TryGetValue(m.Dir, out var items) && items.ContainsKey(itemName))
                 .ToList();
         }
 

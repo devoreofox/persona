@@ -163,7 +163,7 @@ public class SuggestionsWindow : Window, IDisposable
             ImGui.Text(priority);
 
             ImGui.TableNextColumn();
-            ImGui.Text(row.Items);
+            ImGui.Text(string.Join(", ", row.Items));
 
             ImGui.PopID();
         }
@@ -186,10 +186,32 @@ public class SuggestionsWindow : Window, IDisposable
         }
         if (ImGui.BeginPopupContextItem("##wl"))
         {
-            if (ImGui.MenuItem("Whitelist mod (Persona ignores it)"))
+            if (ImGui.MenuItem("Open in Penumbra"))
+                analyzer.OpenModInPenumbra(row.ModDir);
+            if (ImGui.MenuItem("Whitelist mod (all slots)"))
             {
                 analyzer.ToggleWhitelist(row.ModDir);
                 pendingRecompute = true;
+            }
+            if (row.Items.Count == 1)
+            {
+                if (ImGui.MenuItem($"Whitelist on {row.Items[0]}"))
+                {
+                    analyzer.ToggleWhitelistItem(row.ModDir, row.Items[0]);
+                    pendingRecompute = true;
+                }
+            }
+            else if (ImGui.BeginMenu("Whitelist on slot"))
+            {
+                foreach (var item in row.Items)
+                {
+                    if (ImGui.MenuItem(item))
+                    {
+                        analyzer.ToggleWhitelistItem(row.ModDir, item);
+                        pendingRecompute = true;
+                    }
+                }
+                ImGui.EndMenu();
             }
             ImGui.EndPopup();
         }

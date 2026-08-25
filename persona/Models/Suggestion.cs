@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace persona.Models;
 
@@ -7,7 +8,7 @@ public readonly record struct Suggestion(
     string TargetName,
     string ModDir,
     string ModName,
-    string Items,
+    IReadOnlyList<string> Items,
     bool Enable,
     int Priority,
     bool Done);

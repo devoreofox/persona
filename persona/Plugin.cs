@@ -35,7 +35,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Analyzer = new DesignAnalyzer(Configuration);
 
-        ConfigWindow = new ConfigWindow(this);
+        ConfigWindow = new ConfigWindow(Analyzer);
         MainWindow = new MainWindow(this);
         DesignsWindow = new DesignsWindow(Analyzer);
         SuggestionsWindow = new SuggestionsWindow(Analyzer);

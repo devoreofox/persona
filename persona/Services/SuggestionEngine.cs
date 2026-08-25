@@ -16,7 +16,8 @@ public sealed record DesignData(
     IReadOnlySet<string> LiveEnabled,
     IReadOnlyDictionary<string, int> LivePriority,
     IReadOnlyDictionary<string, string> ModNames,
-    Func<Guid, bool> IsBlacklisted);
+    Func<Guid, bool> IsBlacklisted,
+    Func<string, string, bool> IsIgnored);
 
 public static class SuggestionEngine
 {
@@ -94,7 +95,7 @@ public static class SuggestionEngine
                 e.Items.Add(item);
             }
         foreach (var (dir, e) in add)
-            thisDesign.Add(new Suggestion(id, myName, dir, e.Name, string.Join(", ", e.Items), true, e.Priority, myEnabled.Contains(dir)));
+            thisDesign.Add(new Suggestion(id, myName, dir, e.Name, e.Items.ToList(), true, e.Priority, myEnabled.Contains(dir)));
 
         var disable = new Dictionary<string, (string Name, SortedSet<string> Items)>();
         foreach (var item in mine.Keys)
@@ -111,7 +112,7 @@ public static class SuggestionEngine
             }
         }
         foreach (var (dir, e) in disable)
-            thisDesign.Add(new Suggestion(id, myName, dir, e.Name, string.Join(", ", e.Items), false, 0, myDisabled.Contains(dir)));
+            thisDesign.Add(new Suggestion(id, myName, dir, e.Name, e.Items.ToList(), false, 0, myDisabled.Contains(dir)));
 
         thisDesign = thisDesign
             .OrderByDescending(s => s.Enable)
@@ -143,7 +144,7 @@ public static class SuggestionEngine
             var gDisabled = data.DisabledDirs.GetValueOrDefault(g) ?? new HashSet<string>();
             var rows = map
                 .Select(kv => new Suggestion(g, data.Designs.GetValueOrDefault(g, "?"), kv.Key, kv.Value.Name,
-                    string.Join(", ", kv.Value.Items), false, 0, gDisabled.Contains(kv.Key)))
+                    kv.Value.Items.ToList(), false, 0, gDisabled.Contains(kv.Key)))
                 .OrderBy(s => s.ModName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             others.Add((data.Designs.GetValueOrDefault(g, "?"), rows));
@@ -171,7 +172,7 @@ public static class SuggestionEngine
             }
 
             var live = data.LiveEnabled
-                .Where(dir => data.ChangedItems.TryGetValue(dir, out var items) && items.ContainsKey(item))
+                .Where(dir => !data.IsIgnored(dir, item) && data.ChangedItems.TryGetValue(dir, out var items) && items.ContainsKey(item))
                 .OrderByDescending(dir => data.LivePriority.GetValueOrDefault(dir))
                 .Select(dir => (dir, data.ModNames.GetValueOrDefault(dir, dir), data.LivePriority.GetValueOrDefault(dir)))
                 .ToList();
