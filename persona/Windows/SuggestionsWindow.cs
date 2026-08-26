@@ -23,7 +23,7 @@ public class SuggestionsWindow : Window, IDisposable
     private List<Suggestion> thisDesign = new();
     private List<(string Design, List<Suggestion> Rows)> others = new();
 
-    public SuggestionsWindow(DesignAnalyzer analyzer)
+    public SuggestionsWindow(DesignAnalyzer analyzer, Action openSettings)
         : base("Persona Suggestions##PersonaSuggestions", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         this.analyzer = analyzer;
@@ -32,6 +32,8 @@ public class SuggestionsWindow : Window, IDisposable
             MinimumSize = new Vector2(500, 400),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
+
+        PersonaUi.AddSettingsButton(this, openSettings);
     }
 
     public void Dispose() { }
@@ -63,7 +65,7 @@ public class SuggestionsWindow : Window, IDisposable
         DrawPicker();
         ImGui.Separator();
 
-        if (selected is null)
+        if (selected is not { } id)
         {
             ImGui.TextDisabled("Pick a design to see the associations it needs.");
             return;

@@ -12,10 +12,12 @@ namespace persona.Windows;
 public class ConfigWindow : Window, IDisposable
 {
     private readonly DesignAnalyzer analyzer;
+    private readonly Configuration config;
 
-    public ConfigWindow(DesignAnalyzer analyzer) : base("Persona Configuration###persona")
+    public ConfigWindow(DesignAnalyzer analyzer, Configuration config) : base("Persona Configuration###persona")
     {
         this.analyzer = analyzer;
+        this.config = config;
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(400, 300),
@@ -27,6 +29,14 @@ public class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
+        var showMessages = config.ShowSettingMessages;
+        if (ImGui.Checkbox("Show mod-setting messages in chat", ref showMessages))
+        {
+            config.ShowSettingMessages = showMessages;
+            config.Save();
+        }
+        ImGui.Spacing();
+
         ImGui.TextColored(Palette.Heading, "Whitelisted Mods");
         ImGui.Separator();
         ImGui.TextDisabled("Whitelisted mods are ignored in all conflict, bleed, and suggestion checks.");

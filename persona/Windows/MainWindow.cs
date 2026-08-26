@@ -27,6 +27,8 @@ public class MainWindow : Window, IDisposable
         this.plugin = plugin;
         penumbraApiVersion = new PenumbraApiVersion(Plugin.PluginInterface);
         glamourerApiVersion = new GlamourerApiVersion(Plugin.PluginInterface);
+
+        PersonaUi.AddSettingsButton(this, plugin.ToggleConfigUi);
     }
 
     public void Dispose() { }

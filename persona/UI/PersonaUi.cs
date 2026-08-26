@@ -2,12 +2,23 @@ using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Windowing;
 using persona.Services;
 
 namespace persona.UI;
 
 public static class PersonaUi
 {
+    public static void AddSettingsButton(Window window, Action openSettings)
+    {
+        window.TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Cog,
+            Click = _ => openSettings(),
+            ShowTooltip = () => ImGui.SetTooltip("Settings"),
+        });
+    }
+
     public static bool IconButton(FontAwesomeIcon icon)
     {
         ImGui.PushFont(UiBuilder.IconFont);

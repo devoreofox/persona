@@ -20,7 +20,7 @@ public class DesignsWindow : Window, IDisposable
     private List<(string Design, string Items)> conflictRows = new();
     private List<(string Item, string Sources)> bleedRows = new();
 
-    public DesignsWindow(DesignAnalyzer analyzer)
+    public DesignsWindow(DesignAnalyzer analyzer, Action openSettings)
         : base("Persona Designs##PersonaDesigns", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         this.analyzer = analyzer;
@@ -29,6 +29,8 @@ public class DesignsWindow : Window, IDisposable
             MinimumSize = new Vector2(600, 400),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
+
+        PersonaUi.AddSettingsButton(this, openSettings);
     }
 
     public void Dispose() { }
