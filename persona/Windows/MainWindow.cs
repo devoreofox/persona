@@ -67,9 +67,6 @@ public class MainWindow : Window, IDisposable
 
         var icon = connected ? FontAwesomeIcon.Check : FontAwesomeIcon.Times;
         var color = connected ? Palette.Connected : Palette.Disconnected;
-
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextColored(color, icon.ToIconString());
-        ImGui.PopFont();
+        PersonaUi.Icon(icon, color);
     }
 }

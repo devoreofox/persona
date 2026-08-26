@@ -10,7 +10,6 @@ using GetChangedItems = Penumbra.Api.IpcSubscribers.GetChangedItemAdapterDiction
 using GetCollectionForObject = Penumbra.Api.IpcSubscribers.GetCollectionForObject;
 using GetModList = Penumbra.Api.IpcSubscribers.GetModList;
 using GetDesignJObject = Glamourer.Api.IpcSubscribers.GetDesignJObject;
-using GetDesignList = Glamourer.Api.IpcSubscribers.GetDesignList;
 using GetDesignListExtended = Glamourer.Api.IpcSubscribers.GetDesignListExtended;
 using OpenDesign = Glamourer.Api.IpcSubscribers.OpenDesign;
 
@@ -19,7 +18,6 @@ namespace persona.Services;
 public sealed class DesignAnalyzer
 {
     private readonly Configuration config;
-    private readonly GetDesignList getDesignList;
     private readonly GetDesignListExtended getDesignListExtended;
     private readonly GetDesignJObject getDesignJObject;
     private readonly GetChangedItems getChangedItems;
@@ -52,7 +50,6 @@ public sealed class DesignAnalyzer
     public DesignAnalyzer(Configuration config)
     {
         this.config = config;
-        getDesignList = new GetDesignList(Plugin.PluginInterface);
         getDesignListExtended = new GetDesignListExtended(Plugin.PluginInterface);
         getDesignJObject = new GetDesignJObject(Plugin.PluginInterface);
         getChangedItems = new GetChangedItems(Plugin.PluginInterface);
