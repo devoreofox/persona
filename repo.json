@@ -14,8 +14,8 @@
       "utility"
     ],
     "DalamudApiLevel": 15,
-    "AssemblyVersion": "0.0.0.1",
-    "Version": "0.0.0.1",
+    "AssemblyVersion": "0.0.0.2",
+    "Version": "0.0.0.2",
     "DownloadLinkInstall": "https://github.com/devoreofox/persona/releases/latest/download/persona.zip",
     "DownloadLinkUpdate": "https://github.com/devoreofox/persona/releases/latest/download/persona.zip",
     "DownloadLinkTesting": "https://github.com/devoreofox/persona/releases/latest/download/persona.zip"
