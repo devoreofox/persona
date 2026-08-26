@@ -17,7 +17,8 @@ public class DesignsWindow : Window, IDisposable
 
     private Guid? selected;
     private string filter = string.Empty;
-    private List<(string Design, string Items)> conflictRows = new();
+    private List<(string Design, string Items)> conflictingRows = new();
+    private List<(string Design, string Item, string Mod)> conflictRows = new();
     private List<(string Item, string Sources)> bleedRows = new();
 
     public DesignsWindow(DesignAnalyzer analyzer, Action openSettings)
@@ -26,7 +27,7 @@ public class DesignsWindow : Window, IDisposable
         this.analyzer = analyzer;
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(600, 400),
+            MinimumSize = new Vector2(800, 400),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
 
@@ -59,7 +60,7 @@ public class DesignsWindow : Window, IDisposable
         }
 
         var avail = ImGui.GetContentRegionAvail();
-        if (ImGui.BeginChild("##designList", new Vector2(220, avail.Y)))
+        if (ImGui.BeginChild("##designList", new Vector2(400, avail.Y)))
             DrawDesignList();
         ImGui.EndChild();
 
@@ -75,27 +76,108 @@ public class DesignsWindow : Window, IDisposable
         ImGui.TextColored(Palette.Heading, "Designs");
         ImGui.Separator();
 
+        DrawConflictSummary();
+
         ImGui.SetNextItemWidth(-1);
         ImGui.InputTextWithHint("##designFilter", "Search...", ref filter, 100);
         ImGui.Spacing();
 
-        var matches = analyzer.Designs
-            .Where(d => d.Value.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(d => d.Value, StringComparer.OrdinalIgnoreCase);
-
-        var any = false;
-        foreach (var (id, name) in matches)
+        if (filter.Length > 0)
         {
-            any = true;
-            var (clicked, changed) = PersonaUi.DesignSelectable(analyzer, id, name, selected == id);
-            if (clicked)
-                selected = id;
-            if (clicked || changed)
-                Recompute();
+            var matches = analyzer.Designs
+                .Where(d => d.Value.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(d => d.Value, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (matches.Count == 0)
+                ImGui.TextDisabled("No designs match.");
+            foreach (var (id, name) in matches)
+                DrawDesignEntry(id, name);
+            return;
         }
 
-        if (!any)
-            ImGui.TextDisabled("No designs match.");
+        DrawFolder(BuildTree());
+    }
+
+    private void DrawConflictSummary()
+    {
+        var ids = analyzer.Designs.Keys
+            .Where(analyzer.HasConflicts)
+            .OrderBy(id => analyzer.Designs[id], StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (ids.Count == 0)
+            return;
+
+        if (ImGui.CollapsingHeader($"Designs with Unresolved Conflicts ({ids.Count})"))
+        {
+            ImGui.PushID("##conflictSummary");
+            foreach (var id in ids)
+                DrawDesignEntry(id, analyzer.Designs[id]);
+            ImGui.PopID();
+        }
+
+        ImGui.Spacing();
+    }
+
+    private void DrawFolder(Folder node)
+    {
+        foreach (var (folderName, child) in node.Folders)
+        {
+            if (ImGui.TreeNode(folderName))
+            {
+                DrawFolder(child);
+                ImGui.TreePop();
+            }
+        }
+
+        foreach (var (id, name) in node.Designs.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+            DrawDesignEntry(id, name);
+    }
+
+    private void DrawDesignEntry(Guid id, string name)
+    {
+        var conflicted = analyzer.HasConflicts(id);
+        if (conflicted)
+            ImGui.PushStyleColor(ImGuiCol.Text, Palette.Conflict);
+
+        var (clicked, changed) = PersonaUi.DesignSelectable(analyzer, id, name, selected == id);
+
+        if (conflicted)
+            ImGui.PopStyleColor();
+
+        if (clicked)
+            selected = id;
+        if (clicked || changed)
+            Recompute();
+    }
+
+    private Folder BuildTree()
+    {
+        var root = new Folder();
+        foreach (var (id, name) in analyzer.Designs)
+        {
+            var node = root;
+            foreach (var segment in FolderSegments(analyzer.DesignPaths.GetValueOrDefault(id, name)))
+            {
+                if (!node.Folders.TryGetValue(segment, out var child))
+                    node.Folders[segment] = child = new Folder();
+                node = child;
+            }
+            node.Designs.Add((id, name));
+        }
+        return root;
+    }
+
+    private static string[] FolderSegments(string fullPath)
+    {
+        var idx = fullPath.LastIndexOf('/');
+        return idx < 0 ? Array.Empty<string>() : fullPath[..idx].Split('/', StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private sealed class Folder
+    {
+        public SortedDictionary<string, Folder> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<(Guid Id, string Name)> Designs { get; } = new();
     }
 
     private void DrawDesignDetail()
@@ -118,7 +200,13 @@ public class DesignsWindow : Window, IDisposable
 
         ImGui.Spacing();
 
-        ImGui.TextColored(Palette.Heading, "Existing Designs with Conflicts");
+        ImGui.TextColored(Palette.Heading, "Conflicting Designs");
+        ImGui.Separator();
+        DrawConflictingTable();
+
+        ImGui.Spacing();
+
+        ImGui.TextColored(Palette.Heading, "Unresolved Conflicts");
         ImGui.Separator();
         DrawConflictTable();
 
@@ -199,28 +287,58 @@ public class DesignsWindow : Window, IDisposable
         ImGui.EndTable();
     }
 
-    private void DrawConflictTable()
+    private void DrawConflictingTable()
     {
-        if (conflictRows.Count == 0)
+        if (conflictingRows.Count == 0)
         {
-            ImGui.TextDisabled("No other design conflicts with this one.");
+            ImGui.TextDisabled("No other design shares an item with a different mod.");
             return;
         }
 
-        if (!ImGui.BeginTable("##conflicts", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+        if (!ImGui.BeginTable("##conflicting", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             return;
 
         ImGui.TableSetupColumn("Design");
-        ImGui.TableSetupColumn("Conflicting Item(s)");
+        ImGui.TableSetupColumn("Shared Item(s)");
         ImGui.TableHeadersRow();
 
-        foreach (var (design, items) in conflictRows)
+        foreach (var (design, items) in conflictingRows)
         {
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
             ImGui.Text(design);
             ImGui.TableNextColumn();
             ImGui.Text(items);
+        }
+
+        ImGui.EndTable();
+    }
+
+    private void DrawConflictTable()
+    {
+        if (conflictRows.Count == 0)
+        {
+            ImGui.TextDisabled("No unresolved conflicts. This design disables every clashing mod.");
+            return;
+        }
+
+        if (!ImGui.BeginTable("##conflicts", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+            return;
+
+        ImGui.TableSetupColumn("Item");
+        ImGui.TableSetupColumn("Disable Mod");
+        ImGui.TableSetupColumn("Used By");
+        ImGui.TableHeadersRow();
+
+        foreach (var (design, item, mod) in conflictRows)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.Text(item);
+            ImGui.TableNextColumn();
+            ImGui.Text(mod);
+            ImGui.TableNextColumn();
+            ImGui.Text(design);
         }
 
         ImGui.EndTable();
@@ -257,12 +375,14 @@ public class DesignsWindow : Window, IDisposable
     {
         if (selected is { } id)
         {
-            conflictRows = analyzer.Conflicts(id);
+            conflictingRows = analyzer.ConflictingDesigns(id);
+            conflictRows = analyzer.UnresolvedConflicts(id);
             bleedRows = analyzer.BleedRisks(id);
         }
         else
         {
-            conflictRows = new List<(string, string)>();
+            conflictingRows = new List<(string, string)>();
+            conflictRows = new List<(string, string, string)>();
             bleedRows = new List<(string, string)>();
         }
     }

@@ -10,6 +10,7 @@ public static class Palette
     public static Vector4 Connected;
     public static Vector4 Disconnected;
     public static Vector4 Muted;
+    public static Vector4 Conflict;
 
     public static void Apply(ThemeColors t)
     {
@@ -18,5 +19,6 @@ public static class Palette
         Connected = t.Connected;
         Disconnected = t.Disconnected;
         Muted = t.Muted;
+        Conflict = t.Conflict;
     }
 }

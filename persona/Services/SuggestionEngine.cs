@@ -21,7 +21,9 @@ public sealed record DesignData(
 
 public static class SuggestionEngine
 {
-    public static List<(string Design, string Items)> Conflicts(DesignData data, Guid id)
+    // Every design that shares an applied item with this one but assigns a different mod (a divergent
+    // clash), regardless of whether disable associations already resolve it.
+    public static List<(string Design, string Items)> ConflictingDesigns(DesignData data, Guid id)
     {
         var rows = new List<(string, string)>();
         if (!data.EquipMods.TryGetValue(id, out var mine))
@@ -37,7 +39,10 @@ public static class SuggestionEngine
             {
                 if (myMods.Count == 0 || !theirs.TryGetValue(item, out var theirMods) || theirMods.Count == 0)
                     continue;
-                if (!myMods.Select(m => m.Dir).ToHashSet().SetEquals(theirMods.Select(m => m.Dir)))
+
+                var mineDirs = myMods.Select(m => m.Dir).ToHashSet();
+                var theirDirs = theirMods.Select(m => m.Dir).ToHashSet();
+                if (!mineDirs.IsSubsetOf(theirDirs) && !mineDirs.IsSupersetOf(theirDirs))
                     clashes.Add(item);
             }
 
@@ -46,6 +51,45 @@ public static class SuggestionEngine
         }
 
         return rows.OrderBy(r => r.Item1, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // A conflict is UNRESOLVED for this design when another design applies a shared item with a
+    // different mod that this design neither uses nor disables (a missing disable association).
+    public static List<(string Design, string Item, string Mod)> UnresolvedConflicts(DesignData data, Guid id)
+    {
+        var rows = new List<(string, string, string)>();
+        if (!data.EquipMods.TryGetValue(id, out var mine))
+            return rows;
+
+        var myDisabled = data.DisabledDirs.GetValueOrDefault(id) ?? new HashSet<string>();
+
+        foreach (var (other, otherName) in data.Designs)
+        {
+            if (other == id || data.IsBlacklisted(other) || !data.EquipMods.TryGetValue(other, out var theirs))
+                continue;
+
+            foreach (var (item, myMods) in mine)
+            {
+                if (myMods.Count == 0 || !theirs.TryGetValue(item, out var theirMods) || theirMods.Count == 0)
+                    continue;
+
+                var mineDirs = myMods.Select(m => m.Dir).ToHashSet();
+                var theirDirs = theirMods.Select(m => m.Dir).ToHashSet();
+                if (mineDirs.IsSubsetOf(theirDirs) || mineDirs.IsSupersetOf(theirDirs))
+                    continue; // stack, not a divergent conflict
+
+                foreach (var (dir, name) in theirMods)
+                {
+                    if (!mineDirs.Contains(dir) && !myDisabled.Contains(dir))
+                        rows.Add((otherName, item, name));
+                }
+            }
+        }
+
+        return rows
+            .OrderBy(r => r.Item1, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.Item2, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public static List<(string Item, string Sources)> BleedRisks(DesignData data, Guid id)

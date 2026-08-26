@@ -11,6 +11,7 @@ using GetCollectionForObject = Penumbra.Api.IpcSubscribers.GetCollectionForObjec
 using GetModList = Penumbra.Api.IpcSubscribers.GetModList;
 using GetDesignJObject = Glamourer.Api.IpcSubscribers.GetDesignJObject;
 using GetDesignList = Glamourer.Api.IpcSubscribers.GetDesignList;
+using GetDesignListExtended = Glamourer.Api.IpcSubscribers.GetDesignListExtended;
 using OpenDesign = Glamourer.Api.IpcSubscribers.OpenDesign;
 
 namespace persona.Services;
@@ -19,6 +20,7 @@ public sealed class DesignAnalyzer
 {
     private readonly Configuration config;
     private readonly GetDesignList getDesignList;
+    private readonly GetDesignListExtended getDesignListExtended;
     private readonly GetDesignJObject getDesignJObject;
     private readonly GetChangedItems getChangedItems;
     private readonly GetModList getModList;
@@ -28,6 +30,7 @@ public sealed class DesignAnalyzer
     private readonly OpenDesign openDesign;
 
     private Dictionary<Guid, string> designs = new();
+    private Dictionary<Guid, string> designPaths = new();
     private Dictionary<Guid, JObject> raw = new();
     private IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> changedItems = new Dictionary<string, IReadOnlyDictionary<string, object?>>();
 
@@ -40,14 +43,17 @@ public sealed class DesignAnalyzer
     private Dictionary<string, string> modNames = new();
     private HashSet<string> liveEnabled = new();
     private Dictionary<string, int> livePriority = new();
+    private HashSet<Guid> conflicted = new();
 
     public bool GlamourerOk { get; private set; }
     public IReadOnlyDictionary<Guid, string> Designs => designs;
+    public IReadOnlyDictionary<Guid, string> DesignPaths => designPaths;
 
     public DesignAnalyzer(Configuration config)
     {
         this.config = config;
         getDesignList = new GetDesignList(Plugin.PluginInterface);
+        getDesignListExtended = new GetDesignListExtended(Plugin.PluginInterface);
         getDesignJObject = new GetDesignJObject(Plugin.PluginInterface);
         getChangedItems = new GetChangedItems(Plugin.PluginInterface);
         getModList = new GetModList(Plugin.PluginInterface);
@@ -81,6 +87,7 @@ public sealed class DesignAnalyzer
     }
 
     public bool IsBlacklisted(Guid id) => config.BlacklistedDesigns.Contains(id.ToString());
+    public bool HasConflicts(Guid id) => conflicted.Contains(id);
 
     public bool IsIgnored(string dir, string item) =>
         config.WhitelistedMods.Contains(dir) ||
@@ -123,7 +130,9 @@ public sealed class DesignAnalyzer
     private DesignData Snapshot => new(designs, equipMods, itemSources, enabledDirs, disabledDirs,
         enabledPriority, changedItems, liveEnabled, livePriority, modNames, IsBlacklisted, IsIgnored);
 
-    public List<(string Design, string Items)> Conflicts(Guid id) => SuggestionEngine.Conflicts(Snapshot, id);
+    public List<(string Design, string Items)> ConflictingDesigns(Guid id) => SuggestionEngine.ConflictingDesigns(Snapshot, id);
+
+    public List<(string Design, string Item, string Mod)> UnresolvedConflicts(Guid id) => SuggestionEngine.UnresolvedConflicts(Snapshot, id);
 
     public List<(string Item, string Sources)> BleedRisks(Guid id) => SuggestionEngine.BleedRisks(Snapshot, id);
 
@@ -134,13 +143,16 @@ public sealed class DesignAnalyzer
     {
         try
         {
-            designs = getDesignList.Invoke();
+            var ext = getDesignListExtended.Invoke();
+            designs = ext.ToDictionary(kv => kv.Key, kv => kv.Value.Item1);
+            designPaths = ext.ToDictionary(kv => kv.Key, kv => kv.Value.Item2);
             GlamourerOk = true;
         }
         catch
         {
             GlamourerOk = false;
             designs = new Dictionary<Guid, string>();
+            designPaths = new Dictionary<Guid, string>();
         }
 
         try
@@ -180,6 +192,11 @@ public sealed class DesignAnalyzer
         }
 
         BuildItemSources();
+
+        var snapshot = Snapshot;
+        conflicted = designs.Keys
+            .Where(id => !IsBlacklisted(id) && SuggestionEngine.UnresolvedConflicts(snapshot, id).Count > 0)
+            .ToHashSet();
     }
 
     private void RefreshLiveState()
@@ -263,6 +280,9 @@ public sealed class DesignAnalyzer
         {
             var itemId = slot.Value["ItemId"];
             if (itemId is null)
+                continue;
+
+            if (!(slot.Value["Apply"]?.Value<bool>() ?? false))
                 continue;
 
             var itemName = ItemNames.Resolve(itemId.Value<ulong>());
