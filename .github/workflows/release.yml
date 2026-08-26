@@ -66,6 +66,8 @@ jobs:
             "$output/$name.dll",
             "$output/$name.json",
             "$output/$name.deps.json",
+            "$output/Glamourer.Api.dll",
+            "$output/Penumbra.Api.dll",
             "$output/images"
           )
           Compress-Archive -Path $files -DestinationPath "$name.zip"
