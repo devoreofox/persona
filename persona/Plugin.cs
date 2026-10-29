@@ -52,9 +52,10 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Opens the Persona window. /persona setting enable|disable|toggle <collection> | Mod Name | Setting Name"
+            HelpMessage = "Opens the Persona window. /persona setting enable|disable|toggle <collection> | Mod Name | Setting Name | /persona quickdesign <design name> [true|false|toggle]"
         });
 
+        PluginInterface.UiBuilder.DisableGposeUiHide = true;
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
@@ -83,6 +84,12 @@ public sealed class Plugin : IDalamudPlugin
         if (parts.Length >= 1 && string.Equals(parts[0], "setting", StringComparison.OrdinalIgnoreCase))
         {
             HandleSettingCommand(parts.Length == 2 ? parts[1] : string.Empty);
+            return;
+        }
+
+        if (parts.Length >= 1 && string.Equals(parts[0], "quickdesign", StringComparison.OrdinalIgnoreCase))
+        {
+            HandleQuickDesignCommand(parts.Length == 2 ? parts[1] : string.Empty);
             return;
         }
 
@@ -128,6 +135,38 @@ public sealed class Plugin : IDalamudPlugin
         var group = fields.Length == 4 ? fields[2].Trim() : null;
         var setting = fields[^1].Trim();
         Report(ModSettings.Apply(action, collection, mod, group, setting, temporary));
+    }
+
+    private void HandleQuickDesignCommand(string rest)
+    {
+        const string usage = "Usage: /persona quickdesign <design name> [true|false|toggle]";
+
+        var work = rest.Trim();
+        if (work.Length == 0)
+        {
+            ChatGui.PrintError($"[Persona] {usage}");
+            return;
+        }
+
+        bool? open = null;
+        var lastSpace = work.LastIndexOf(' ');
+        if (lastSpace > 0 && TryParseOpen(work[(lastSpace + 1)..], out open))
+            work = work[..lastSpace].TrimEnd();
+        else if (TryParseOpen(work, out open))
+            work = string.Empty;
+
+        Report(Analyzer.SetQuickDesign(work, open));
+    }
+
+    private static bool TryParseOpen(string text, out bool? open)
+    {
+        switch (text.ToLowerInvariant())
+        {
+            case "true": case "open": case "on": open = true; return true;
+            case "false": case "close": case "off": open = false; return true;
+            case "toggle": open = null; return true;
+            default: open = null; return false;
+        }
     }
 
     private void Report((bool Ok, string Message) result)

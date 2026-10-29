@@ -12,6 +12,7 @@ using GetModList = Penumbra.Api.IpcSubscribers.GetModList;
 using GetDesignJObject = Glamourer.Api.IpcSubscribers.GetDesignJObject;
 using GetDesignListExtended = Glamourer.Api.IpcSubscribers.GetDesignListExtended;
 using OpenDesign = Glamourer.Api.IpcSubscribers.OpenDesign;
+using OpenQuickDesignBar = Glamourer.Api.IpcSubscribers.OpenQuickDesignBar;
 
 namespace persona.Services;
 
@@ -26,6 +27,7 @@ public sealed class DesignAnalyzer
     private readonly GetCollectionForObject getCollectionForObject;
     private readonly OpenMainWindow openMainWindow;
     private readonly OpenDesign openDesign;
+    private readonly OpenQuickDesignBar openQuickDesignBar;
 
     private Dictionary<Guid, string> designs = new();
     private Dictionary<Guid, string> designPaths = new();
@@ -58,6 +60,32 @@ public sealed class DesignAnalyzer
         getCollectionForObject = new GetCollectionForObject(Plugin.PluginInterface);
         openMainWindow = new OpenMainWindow(Plugin.PluginInterface);
         openDesign = new OpenDesign(Plugin.PluginInterface);
+        openQuickDesignBar = new OpenQuickDesignBar(Plugin.PluginInterface);
+    }
+
+    public (bool Ok, string Message) SetQuickDesign(string name, bool? open)
+    {
+        Dictionary<Guid, (string DisplayName, string FullPath, uint Color, bool ShownInQdb)> list;
+        try { list = getDesignListExtended.Invoke(); }
+        catch { return (false, "Glamourer is not available."); }
+
+        var id = Guid.Empty;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var matches = list.Where(kv => string.Equals(kv.Value.DisplayName, name, StringComparison.OrdinalIgnoreCase))
+                .Select(kv => kv.Key).ToList();
+            if (matches.Count == 0)
+                return (false, $"No design named '{name}'.");
+            if (matches.Count > 1)
+                return (false, $"Multiple designs named '{name}'; open it from the UI instead.");
+            id = matches[0];
+        }
+
+        try { openQuickDesignBar.Invoke(open, id); }
+        catch (Exception e) { return (false, $"Glamourer call failed: {e.Message}"); }
+
+        var state = open switch { true => "opened", false => "closed", _ => "toggled" };
+        return (true, id == Guid.Empty ? $"Quick design bar {state}." : $"Quick design bar {state} on '{name}'.");
     }
 
     public IEnumerable<(string Dir, string Name)> WhitelistedMods() =>
@@ -228,6 +256,12 @@ public sealed class DesignAnalyzer
         }
     }
 
+    // Glamourer design mods used to carry "Enabled": bool; newer designs use "State": "Enabled"/"Disabled".
+    private static bool ModEnabled(JToken mod) =>
+        mod["State"] is JToken state
+            ? string.Equals(state.Value<string>(), "Enabled", StringComparison.OrdinalIgnoreCase)
+            : mod["Enabled"]?.Value<bool>() ?? false;
+
     private static (HashSet<string> Enabled, HashSet<string> Disabled, Dictionary<string, int> Priority) ModStates(JObject design)
     {
         var enabled = new HashSet<string>();
@@ -240,7 +274,7 @@ public sealed class DesignAnalyzer
                 var dir = m["Directory"]?.Value<string>();
                 if (dir is null)
                     continue;
-                if (m["Enabled"]?.Value<bool>() ?? false)
+                if (ModEnabled(m))
                 {
                     enabled.Add(dir);
                     priority[dir] = m["Priority"]?.Value<int>() ?? 0;
@@ -265,7 +299,7 @@ public sealed class DesignAnalyzer
         {
             foreach (var mod in mods)
             {
-                if (!(mod["Enabled"]?.Value<bool>() ?? false))
+                if (!ModEnabled(mod))
                     continue;
                 var dir = mod["Directory"]?.Value<string>();
                 if (dir is not null)
